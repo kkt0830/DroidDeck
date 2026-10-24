@@ -32,7 +32,7 @@ class TurnipDriverAutoTest {
     }
 
     @Test fun stalePinnedAdrenoDriverIsIgnoredOnNonAdreno() {
-        val context = RuntimeEnvironment.getApplication<android.app.Application>()
+        val context = RuntimeEnvironment.getApplication()
         com.droiddeck.launcher.session.SessionPrefs.setAndroidDriver(context, "turnip-sdk36")
         try {
             org.junit.Assert.assertNull(TurnipDriver(context).install())

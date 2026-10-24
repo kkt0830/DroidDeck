@@ -141,3 +141,59 @@ and app-visible kernel device nodes. This can be collected on the tablet
 without a PC. It narrows host-driver versus kernel-driver implementations; it
 is not itself proof that either complete bridge works. No new rendering APK
 was built from this documentation-only audit.
+
+## SM-X820 evidence and experimental Kbase path (2026-10-24)
+
+The supplied `DroidDeck-2026-10-24-03-steam-3.zip` confirms ARM vendor `0x13b5`,
+GPU `0xc8700000`, system Vulkan 1.3.247, successful Android instance and minimal
+logical-device creation, and one returned physical device. `/dev/mali0` is
+visible with read/write access checks passing; KGSL and renderD128 are absent.
+This does not prove that Kbase ioctls or DMA-BUF export are permitted.
+The observed status -1 is the application's `LINUX_VULKAN_UNSUPPORTED` guard;
+Gamescope did not run in that session.
+
+A newly identified candidate is zenithblue-oss/panvk-kbase-android, pinned in
+`tools/panvk/build.sh`. Unlike upstream DRM-only PanVK, it implements a Kbase
+kernel backend and includes a glibc build path. Its universal g615-v11-csf patch
+series includes G720/v12; the separate g720 profile is incomplete. Upstream
+reports tests on the same GPU ID in a Tab S10 Ultra, but those are third-party
+claims, not verification on this SM-X820 or of DroidDeck/Gamescope.
+
+`Build experimental PanVK Kbase` builds this driver with X11 and Wayland WSI
+on an ARM64 GitHub runner. A successful run can be explicitly supplied to
+`Build APK` using `experimental_panvk_run`. Ordinary APK builds contain no
+experimental driver. The artifact carries source revisions, licenses, ELF
+metadata, and checksums; the APK verifies checksums again when extracting it.
+Only ARM device ID 0xc8700000 selects this experimental path. Adreno keeps its
+existing driver path. No Android vendor HAL is substituted for a glibc ICD.
+
+The experimental APK bypasses the earlier guard only when the actual bundled
+Kbase library is present and verified. Both Vulkan loader environment variables
+and the runtime's driver override point to that library's ICD. The existing
+`/dev` bind exposes the real `/dev/mali0`; it is not renamed to a DRM node.
+
+Before starting Gamescope, `panvk-probe` runs inside the Linux session with the
+same ICD and Wayland environment. It records instance extensions, instance
+creation, physical-device properties, minimal graphics/compute logical-device
+creation, and actual Wayland surface creation/presentation-support query when
+available. A 30-second timeout bounds hangs. A successful minimal probe does
+not validate all Gamescope features, DMA-BUF presentation, or Steam UI. The
+native Gamescope Wayland backend can use DMA-BUF without a Vulkan surface;
+surface failure is therefore recorded separately rather than treated as proof
+that all presentation paths are broken.
+
+Device procedure: install the specifically labeled experimental APK, start one
+Steam session, then Share logs. Inspect `panvk_probe.*`, `graphics.experimental_icd`,
+loader errors, Gamescope backend messages, and whether the Steam login screen
+actually appears. Preserve existing app data if Android reports a signing
+certificate mismatch. Do not install a normal diagnostic APK expecting this
+experimental driver to be included.
+
+Experimental presentation uses Gamescope's SDL backend with Wayland and
+`MESA_VK_WSI_DEBUG=sw` (shared-memory presentation, not a CPU Vulkan ICD).
+This avoids the cached-instance native-Wayland-to-SDL fallback and does not
+require the Android vendor Vulkan driver to import Linux DMA-BUFs. The Android
+compositor now enables DMA-BUF extensions only as a supported group, preserving
+its shared-memory upload path. Adreno with all extensions retains the existing
+DMA-BUF path. GPU composition, Gamescope extension requirements and actual
+shared-memory swapchain presentation remain device validation gates.

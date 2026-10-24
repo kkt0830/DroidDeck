@@ -121,7 +121,8 @@ if [ -n "${BL_VK_DRIVER:-}" ]; then
   fi
   unset bl_icd_lib
 fi
-if [ -n "${BL_PANVK_PROBE:-}" ]; then
+if [ -n "${BL_PANVK_PROBE:-}" ] && [ -z "${BL_INSIDE:-}" ]; then
+  export MESA_VK_WSI_DEBUG=sw
   echo "== experimental PanVK: Linux instance/device/Wayland preflight"
   timeout 30s "$BL_PANVK_PROBE"
   bl_probe_status=$?
@@ -241,7 +242,14 @@ if [ -z "${BL_INSIDE:-}" ]; then
   if [ "$mode" = steam ] && [ "${BL_CURSOR_COMPOSITE:-0}" = 1 ]; then
     export gamescope_cursor_composite=2
   fi
-  args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
+  bl_backend=wayland
+  if [ -n "${BL_PANVK_PROBE:-}" ]; then
+    bl_backend=sdl
+    export SDL_VIDEODRIVER=wayland
+    export MESA_VK_WSI_DEBUG=sw
+    echo "== experimental PanVK: SDL Wayland with shared-memory presentation"
+  fi
+  args=(--backend "$bl_backend" --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
   [ "$nested" != "$width" ] && args+=(-S stretch) && export BL_STRETCHED=1
   if [ "${BL_FPS:-0}" -gt 0 ]; then
     args+=(-r "$BL_FPS")

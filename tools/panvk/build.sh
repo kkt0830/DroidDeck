@@ -15,6 +15,8 @@ git -C mesa checkout --detach FETCH_HEAD
 test "$(git -C mesa rev-parse HEAD)" = "$mesa_commit"
 # This is the universal CSF series, including v12/G720; the g720 profile is incomplete.
 bash driver/scripts/apply-patches.sh --profile g615-v11-csf --mesa "$PWD/mesa"
+git -C mesa apply --check "$root/tools/panvk/patches/0001-fix-command-pool-list.patch"
+git -C mesa apply "$root/tools/panvk/patches/0001-fix-command-pool-list.patch"
 meson setup build mesa -Dbuildtype=release -Dplatforms=x11,wayland \
   -Dgallium-drivers= -Dvulkan-drivers=panfrost -Dpanfrost-kmds=kbase \
   -Degl=disabled -Dgles1=disabled -Dgles2=disabled -Dopengl=false \
@@ -23,6 +25,7 @@ ninja -C build -j 4
 mkdir -p "$root/panvk-artifact"
 cp build/src/panfrost/vulkan/libvulkan_panfrost.so "$root/panvk-artifact/"
 cc -O2 -Wall -Wextra "$root/tools/panvk/probe.c" -o "$root/panvk-artifact/panvk-probe" $(pkg-config --cflags --libs vulkan wayland-client)
+cp -r "$root/tools/panvk/patches" "$root/panvk-artifact/"
 cp driver/NOTICE.md "$root/panvk-artifact/"
 cp -r driver/LICENSES "$root/panvk-artifact/"
 cd "$root/panvk-artifact"

@@ -1,0 +1,23 @@
+--- a/src/panfrost/vulkan/panvk_cmd_pool.c
++++ b/src/panfrost/vulkan/panvk_cmd_pool.c
+@@ -127,7 +127,7 @@
+    return v && pan_arch(pdev->kmod.dev->props.gpu_id) >= 10;
+ }
+ 
+-#define PANVK_CMD_POOL_BO_POOLS 6
++#define PANVK_CMD_POOL_BO_POOLS 5
+ 
+ static void
+ panvk_cmd_pool_bo_pools(struct panvk_cmd_pool *pool,
+@@ -136,9 +136,8 @@
+    out[0] = &pool->cs_bo_pool;
+    out[1] = &pool->desc_bo_pool;
+    out[2] = &pool->varying_bo_pool;
+-   out[3] = &pool->gs_bo_pool;
+-   out[4] = &pool->tls_bo_pool;
+-   out[5] = &pool->tls_big_bo_pool;
++   out[3] = &pool->tls_bo_pool;
++   out[4] = &pool->tls_big_bo_pool;
+ }
+ 
+ static void

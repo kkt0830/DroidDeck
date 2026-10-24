@@ -28,6 +28,11 @@ data class GpuInfo(
         fun label(context: Context): String = if (this == NOT_ADRENO) context.getString(R.string.gpuinfo_not_adreno) else label
     }
 
+    enum class Vendor { QUALCOMM, ARM, OTHER }
+
+    val supportsTurnip: Boolean get() = family != Family.NOT_ADRENO
+    val vendor: Vendor get() = vendorOf(supportsTurnip, name)
+
     enum class Support { TESTED, UNTESTED, UNSUPPORTED }
 
     private val isA850: Boolean get() = model == 850 || platformGpuModel == 850
@@ -70,6 +75,7 @@ data class GpuInfo(
             val adreno = File("/sys/class/kgsl/kgsl-3d0").exists() || File("/vendor/lib64/hw/vulkan.adreno.so").exists()
             val raw = FileUtils.readString(File("/sys/class/kgsl/kgsl-3d0/gpu_model"))?.trim()
             val chipId = FileUtils.readString(File("/sys/class/kgsl/kgsl-3d0/gpu_chipid"))?.trim().orEmpty()
+            val systemDevice = if (!adreno) VulkanInfo.query()["device"].orEmpty() else ""
             val soc = if (adreno) SocNames.label() else ""
             val platformGpuModel = if (adreno) platformModel() else 0
             val (model, source) = if (adreno) modelFromNames(
@@ -80,12 +86,18 @@ data class GpuInfo(
             val family = familyOf(adreno, model)
             val samsung = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
             return GpuInfo(
-                name = if (!adreno) Build.HARDWARE.ifBlank { UNNAMED } else if (model > 0) "Adreno $model" else "Adreno",
+                name = if (!adreno) systemDevice.ifBlank { Build.HARDWARE.ifBlank { UNNAMED } } else if (model > 0) "Adreno $model" else "Adreno",
                 model = model, family = family, soc = soc,
                 oneUi8Gen2 = samsung && model == 740,
                 kgslName = raw.orEmpty(), modelSource = source, kgslChipId = chipId,
                 platformGpuModel = platformGpuModel,
             )
+        }
+
+        internal fun vendorOf(adreno: Boolean, renderer: String): Vendor = when {
+            adreno -> Vendor.QUALCOMM
+            Regex("(?i)\\b(mali|immortalis)\\b").containsMatchIn(renderer) -> Vendor.ARM
+            else -> Vendor.OTHER
         }
 
         internal fun threeDigits(text: String): Int = Regex("""(?i)\badreno\s*(?:\(TM\)\s*)?(\d{3})(?!\d)""").find(text)?.groupValues?.get(1)?.toIntOrNull() ?: 0

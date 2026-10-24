@@ -34,6 +34,10 @@ public final class LinuxVulkanDriver {
     }
 
     public static String resolveIcdPath(Context context, String value) {
+        if (!GpuInfo.Companion.detect().getSupportsTurnip()) {
+            Log.w(TAG, "Linux Turnip requires Adreno/KGSL; Android system Vulkan is not a Linux ICD");
+            return null;
+        }
         if (value == null || value.isEmpty()) return null;
         LinuxVulkanDriverManager m = new LinuxVulkanDriverManager(context);
         String icd = m.getIcdPath(value);

@@ -426,6 +426,21 @@ class SessionService : Service() {
         val sessionDir = openSessionFolder()
         val sessionLog = File(sessionDir, "session.log")
 
+        val gpu = com.droiddeck.launcher.gpu.GpuInfo.detect()
+        SessionEvents.record("graphics.compatibility", mapOf(
+            "gpu" to gpu.name, "vendor" to gpu.vendor.name,
+            "turnipCompatible" to gpu.supportsTurnip,
+            "androidVulkan" to com.droiddeck.launcher.gpu.VulkanInfo.query(),
+        ))
+        if (!gpu.supportsTurnip) {
+            val message = "${gpu.name}: runtime r9 has no compatible Linux Vulkan backend. " +
+                "Turnip requires Adreno/KGSL; Android system Vulkan cannot be loaded by Linux Gamescope."
+            sessionLog.appendText("== graphics: $message\n")
+            SessionEvents.fail("LINUX_VULKAN_UNSUPPORTED", message)
+            stopSession(-1)
+            return
+        }
+
         Log.i(TAG, GpuClockPin.start(this))
         Log.i(TAG, GameThreadHints.start(this))
 

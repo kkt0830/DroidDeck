@@ -11,6 +11,7 @@ import android.os.StatFs
 import android.provider.Settings
 import android.util.Log
 import android.view.Display
+import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.gpu.LinuxVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
 import com.droiddeck.launcher.gpu.TurnipDriver

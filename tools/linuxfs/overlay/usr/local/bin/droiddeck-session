@@ -121,6 +121,15 @@ if [ -n "${BL_VK_DRIVER:-}" ]; then
   fi
   unset bl_icd_lib
 fi
+if [ -n "${BL_PANVK_PROBE:-}" ]; then
+  echo "== experimental PanVK: Linux instance/device/Wayland preflight"
+  timeout 30s "$BL_PANVK_PROBE"
+  bl_probe_status=$?
+  echo "== experimental PanVK preflight status=$bl_probe_status"
+  if [ "$bl_probe_status" -ne 0 ]; then
+    steam_setup_failed "$bl_probe_status"
+  fi
+fi
 export GAMESCOPE_FORCE_VULKAN_REALTIME=${BL_GAMESCOPE_REALTIME:-0}
 
 start_agent() {

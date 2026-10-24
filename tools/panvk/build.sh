@@ -22,6 +22,7 @@ meson setup build mesa -Dbuildtype=release -Dplatforms=x11,wayland \
 ninja -C build -j 4
 mkdir -p "$root/panvk-artifact"
 cp build/src/panfrost/vulkan/libvulkan_panfrost.so "$root/panvk-artifact/"
+cc -O2 -Wall -Wextra "$root/tools/panvk/probe.c" -o "$root/panvk-artifact/panvk-probe" $(pkg-config --cflags --libs vulkan wayland-client)
 cp driver/NOTICE.md "$root/panvk-artifact/"
 cp -r driver/LICENSES "$root/panvk-artifact/"
 cd "$root/panvk-artifact"
@@ -34,4 +35,4 @@ readelf -d libvulkan_panfrost.so > dependencies.txt
 readelf --version-info libvulkan_panfrost.so > symbol-versions.txt
 grep -q AArch64 elf-header.txt
 grep -q GLIBC_ symbol-versions.txt
-sha256sum libvulkan_panfrost.so > SHA256SUMS
+sha256sum libvulkan_panfrost.so panvk-probe > SHA256SUMS

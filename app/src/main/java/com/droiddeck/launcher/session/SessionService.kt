@@ -719,6 +719,7 @@ class SessionService : Service() {
                 guest.add("VK_DRIVER_FILES=" + it.path)
                 guest.add(LinuxVulkanDriver.ENV + "=" + it.path)
                 guest.add("VK_LOADER_DEBUG=error,warn,driver")
+                guest.add("BL_PANVK_PROBE=" + File(it.parentFile, "panvk-probe").path)
             }
         }
         val linuxDriverId = SessionPrefs.linuxDriver(this)

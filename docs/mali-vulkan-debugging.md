@@ -58,7 +58,12 @@ Do not uninstall the user's app automatically.
    from the system Vulkan physical device (e.g. Immortalis-G720), and the Linux
    session reports `LINUX_VULKAN_UNSUPPORTED`, not a misleading `GUEST_EXIT`.
    This is a deliberate stop, **not** a successful Gamescope or Steam test.
-4. Capture kernel/device information without root:
+4. No PC is needed for the first report: **Share logs** includes the raw Android
+   Vulkan probe results, board platform, kernel, and app-scoped stat/read/write
+   observations for Mali/KGSL/DRM nodes in `device.txt`. Visibility does not prove
+   successful device opening, ioctl support, or SELinux permission.
+
+   If a PC is available, capture additional shell-scoped information without root:
 
    ```sh
    adb shell getprop ro.board.platform

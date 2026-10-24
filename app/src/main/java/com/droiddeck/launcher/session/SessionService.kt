@@ -430,7 +430,7 @@ class SessionService : Service() {
         SessionEvents.record("graphics.compatibility", mapOf(
             "gpu" to gpu.name, "vendor" to gpu.vendor.name,
             "turnipCompatible" to gpu.supportsTurnip,
-            "androidVulkan" to com.droiddeck.launcher.gpu.VulkanInfo.query(),
+            "androidVulkan" to org.json.JSONObject(com.droiddeck.launcher.gpu.VulkanInfo.query()),
         ))
         if (!gpu.supportsTurnip) {
             val message = "${gpu.name}: runtime r9 has no compatible Linux Vulkan backend. " +

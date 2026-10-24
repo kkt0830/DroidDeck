@@ -230,6 +230,25 @@ object DeviceReport {
         }
         k("Runtime's own ICD", LinuxRuntime.vulkanIcd(context)?.path)
 
+        if (!GpuInfo.detect().supportsTurnip) {
+            h("Non-Adreno Vulkan diagnostics (Android app scope)")
+            k("Board platform", GpuInfo.systemProperty("ro.board.platform"))
+            k("Kernel", System.getProperty("os.version"))
+            for ((key, value) in com.droiddeck.launcher.gpu.VulkanInfo.query()) k(key, value)
+            val nodes = listOf("/dev/mali0", "/dev/kgsl-3d0", "/dev/dri", "/dev/dri/renderD128") +
+                File("/dev/dri").listFiles().orEmpty().map { it.path }
+            for (path in nodes.distinct()) {
+                val access = try {
+                    val stat = android.system.Os.stat(path)
+                    "mode=${Integer.toOctalString(stat.st_mode)} uid=${stat.st_uid} " +
+                        "readable=${File(path).canRead()} writable=${File(path).canWrite()}"
+                } catch (e: android.system.ErrnoException) {
+                    "stat errno=${e.errno} (${e.message})"
+                }
+                k(path, access)
+            }
+        }
+
         h("Runtime")
         k("Installed version", LinuxRuntimeInstaller.installedVersion(context))
         k("Runtime ready", LinuxRuntime.isInstalled(context))

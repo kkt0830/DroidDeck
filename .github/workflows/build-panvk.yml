@@ -1,5 +1,8 @@
 name: Build experimental PanVK Kbase
 on:
+  push:
+    branches: [work]
+    paths: [tools/panvk/**, .github/workflows/build-panvk.yml]
   workflow_dispatch:
 permissions:
   contents: read

@@ -19,12 +19,27 @@ known incompatible guest backend. Imported Linux Turnip and pinned Android
 AdrenoTools selections cannot bypass that compatibility check. Unknown Adreno
 models keep their existing SDK fallback, including Quest's patched defaults.
 
-The reported missing physical device prevents Gamescope backend creation. The
-Wayland extension error is a separate, unverified WSI requirement: its chronology
-alone cannot prove it is just a downstream symptom. Extension enumeration,
-instance enabled-extension lists and a real surface creation must be checked in
-**the Linux process** after a usable ICD exists. Android extension availability
-does not establish Linux Wayland WSI support.
+The supplied error sequence matches a concrete fallback bug in Gamescope
+3.16.29 (upstream commit `8f212644c46460549035971ab914421180f61a7c`):
+
+1. `CWaylandBackend::GetInstanceExtensions()` returns an empty list. Its native
+   Wayland path uses DMA-BUF presentation, not a Vulkan Wayland swapchain.
+2. `vulkan_get_instance()` caches the first instance in a function-local static.
+3. Wayland `Init()` calls `vulkan_init(instance, VK_NULL_HANDLE)`. Physical-device
+   selection fails with the incompatible Turnip ICD.
+4. `main.cpp` falls back to `CSDLBackend` when Wayland initialization fails. SDL
+   reuses that cached instance, which lacks its required surface extensions.
+
+This explains how the Wayland-surface error can be downstream of device
+selection failure; it is not evidence that enabling one extension fixes Mali.
+A full device log is still needed to establish the exact backend sequence in the
+installed binary. Also, “failed to find physical device” means no *suitable*
+device was selected: upstream ignores enumeration return codes and filters by
+Vulkan version and queue support, so this line alone does not prove a zero count.
+
+For native Wayland, validate DMA-BUF presentation and synchronization. For SDL
+Wayland, independently validate enabled instance extensions and actual surface
+creation. Android extension availability proves neither Linux path works.
 
 ## Candidate paths and missing prerequisites
 
@@ -46,7 +61,9 @@ capability evidence.
 Use the APK from the fork's **Build APK** workflow artifact after CI succeeds.
 The standard workflow signs with the repository test key. If an existing release
 uses a different signing certificate, Android will reject an update; preserve
-user data and use a separate device/profile or an explicitly backed-up install.
+user data and retain the installed app until a compatible signing key or a
+separate test application ID is available. A second Android user profile does
+not generally bypass package signing-certificate requirements.
 Do not uninstall the user's app automatically.
 
 1. Install using `adb install -r path/to/app-release.apk`, then fully stop and
@@ -98,3 +115,29 @@ Gamescope**, preserving exit codes and loader diagnostics (`VK_LOADER_DEBUG=all`
 Then test Wayland instance/surface creation against DroidDeck's active compositor,
 backend startup, and finally Steam login, in that order. Do not remove the guard
 until that backend is explicitly implemented and selected.
+
+## Android-to-Linux bridge source audit
+
+The following public implementations were inspected; none was integrated or
+represented as a working SM-X820 backend:
+
+* [Vortek client](https://github.com/brunodev85/vortek/tree/b1730c5def9b575672e671aee11d79ae7adc63d1)
+  provides a real Unix-socket Vulkan forwarding protocol. In
+  `src/vulkan_calls.c`, surface creation is Xlib-only; no
+  `vkCreateWaylandSurfaceKHR` entry exists. `vkGetMemoryFdPropertiesKHR` and
+  `vkImportSemaphoreFdKHR` unconditionally return
+  `VK_ERROR_INVALID_EXTERNAL_HANDLE`. Gamescope's semaphore import path calls
+  the latter, so matching function names alone is not interoperability.
+* [Termux Vortek server](https://github.com/nostalgia296/vortek-termux/tree/616b508b7712405ec394cf435b6dfe59fc40da94)
+  includes an Android system-loader path and Android Hardware Buffer handling,
+  but its standalone presentation backend is X11. Integrating it requires a
+  host service, a matching Linux client, lifecycle/transport integration, and
+  compatible presentation and external-memory/fence implementations. Disabling
+  the non-Adreno guard or installing its manifest supplies none of these.
+
+Required next device evidence is the existing APK's **Share logs** archive:
+Android physical-device properties/extensions, minimal logical-device result,
+and app-visible kernel device nodes. This can be collected on the tablet
+without a PC. It narrows host-driver versus kernel-driver implementations; it
+is not itself proof that either complete bridge works. No new rendering APK
+was built from this documentation-only audit.

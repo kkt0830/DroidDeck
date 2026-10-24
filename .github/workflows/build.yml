@@ -17,6 +17,10 @@ on:
       - '.gitignore'
   workflow_dispatch:
     inputs:
+      experimental_panvk_run:
+        description: Successful experimental PanVK workflow run ID to bundle (blank disables it)
+        type: string
+        default: ''
       rebuild_preloads:
         description: Rebuild preloads instead of reusing the approved binary snapshot
         type: boolean
@@ -493,6 +497,20 @@ jobs:
           restore-keys: pack-inputs-v1-
       - name: Build the add-on packs
         run: bash tools/packs/build.sh app/build/packs
+
+      - name: Bundle experimental Mali driver
+        if: github.event_name == 'workflow_dispatch' && inputs.experimental_panvk_run != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PANVK_RUN: ${{ inputs.experimental_panvk_run }}
+        run: |
+          set -euo pipefail
+          [[ "$PANVK_RUN" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PANVK_RUN" > /tmp/panvk-run.json
+          jq -e '.conclusion == "success" and .path == ".github/workflows/build-panvk.yml" and .head_branch == "work"' /tmp/panvk-run.json
+          gh run download "$PANVK_RUN" --repo "$GITHUB_REPOSITORY" -n experimental-panvk-kbase-glibc -D app/src/main/assets/experimental-panvk
+          (cd app/src/main/assets/experimental-panvk && sha256sum -c SHA256SUMS)
+          cp /tmp/panvk-run.json app/src/main/assets/experimental-panvk/build-run.json
 
       - name: Build
         id: build

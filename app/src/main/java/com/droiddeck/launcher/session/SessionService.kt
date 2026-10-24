@@ -432,7 +432,19 @@ class SessionService : Service() {
             "turnipCompatible" to gpu.supportsTurnip,
             "androidVulkan" to org.json.JSONObject(com.droiddeck.launcher.gpu.VulkanInfo.query()),
         ))
-        if (!gpu.supportsTurnip) {
+        experimentalMaliIcd = try {
+            com.droiddeck.launcher.gpu.ExperimentalMaliDriver.prepare(this, gpu)
+        } catch (e: Exception) {
+            SessionEvents.fail("EXPERIMENTAL_ICD_INVALID", e.message ?: "PanVK preparation failed")
+            sessionLog.appendText("== PanVK preparation failed: ${e.message}\n")
+            stopSession(-1)
+            return
+        }
+        if (experimentalMaliIcd != null) {
+            SessionEvents.record("graphics.experimental_icd", mapOf("path" to experimentalMaliIcd!!.path))
+            sessionLog.appendText("== experimental PanVK Kbase: ${experimentalMaliIcd!!.path}\n")
+        }
+        if (!gpu.supportsTurnip && experimentalMaliIcd == null) {
             val message = "${gpu.name}: runtime r9 has no compatible Linux Vulkan backend. " +
                 "Turnip requires Adreno/KGSL; Android system Vulkan cannot be loaded by Linux Gamescope."
             sessionLog.appendText("== graphics: $message\n")
@@ -662,6 +674,8 @@ class SessionService : Service() {
         }
     }
 
+    private var experimentalMaliIcd: File? = null
+
     private fun openSessionFolder(): File {
         val sessionDir = SessionPaths.beginOrCurrent(this)
         val sessionLog = File(sessionDir, "session.log")
@@ -699,7 +713,14 @@ class SessionService : Service() {
         guest.add("MESA_LOADER_DRIVER_OVERRIDE=zink")
         guest.add("GALLIUM_DRIVER=zink")
         guest.add("LIBGL_KOPPER_DRI2=true")
-        LinuxRuntime.vulkanIcd(this)?.let { guest.add("VK_ICD_FILENAMES=" + it.path) }
+        (experimentalMaliIcd ?: LinuxRuntime.vulkanIcd(this))?.let {
+            guest.add("VK_ICD_FILENAMES=" + it.path)
+            if (experimentalMaliIcd != null) {
+                guest.add("VK_DRIVER_FILES=" + it.path)
+                guest.add(LinuxVulkanDriver.ENV + "=" + it.path)
+                guest.add("VK_LOADER_DEBUG=error,warn,driver")
+            }
+        }
         val linuxDriverId = SessionPrefs.linuxDriver(this)
         SessionState.runtimeDriver = linuxDriverId
         com.droiddeck.launcher.gpu.AutoDriverTrial.sessionStarting(

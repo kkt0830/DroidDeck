@@ -9,6 +9,10 @@ object ExperimentalMaliDriver {
         gpu.vendor == GpuInfo.Vendor.ARM && !gpu.supportsTurnip &&
             deviceId?.removePrefix("0x")?.toLongOrNull(16) == 0xc8700000L
 
+    fun bundledFor(context: Context, gpu: GpuInfo): Boolean =
+        eligible(gpu, VulkanInfo.cachedOrNull()?.get("device_id")) &&
+            context.assets.list("experimental-panvk").orEmpty().contains("SHA256SUMS")
+
     fun prepare(context: Context, gpu: GpuInfo): File? {
         if (!eligible(gpu, VulkanInfo.query()["device_id"])) return null
         val assets = context.assets

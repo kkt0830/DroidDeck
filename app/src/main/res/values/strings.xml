@@ -3064,4 +3064,5 @@
     <string name="spatial_saved_views_hint">Saved views can be recalculated. Start a new calibration to capture in the current tracking frame.</string>
     <string name="spatial_model_checksum_error">Hand model checksum mismatch</string>
     <string name="spatial_opencv_load_error">OpenCV could not load</string>
+    <string name="session_linux_vulkan_unavailable">This GPU has no compatible Linux Vulkan backend in the installed runtime. Steam was not launched. Retrying or reinstalling the same APK will not resolve this.</string>
 </resources>

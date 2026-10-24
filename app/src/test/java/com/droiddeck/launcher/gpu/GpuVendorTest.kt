@@ -11,6 +11,20 @@ class GpuVendorTest {
             assertFalse(gpu.supportsTurnip)
         }
     }
+    @Test fun physicalVendorOverridesStaleAdrenoClassification() {
+        val gpu = GpuInfo("unknown", 0, GpuInfo.Family.ADRENO_UNKNOWN, "", false,
+            vulkanVendorId = 0x13b5)
+        assertEquals(GpuInfo.Vendor.ARM, gpu.vendor)
+        assertFalse(gpu.supportsTurnip)
+    }
+
+    @Test fun qualcommVendorAloneDoesNotEstablishTurnipCompatibility() {
+        val gpu = GpuInfo("unknown", 0, GpuInfo.Family.NOT_ADRENO, "", false,
+            vulkanVendorId = 0x5143)
+        assertEquals(GpuInfo.Vendor.QUALCOMM, gpu.vendor)
+        assertFalse(gpu.supportsTurnip)
+    }
+
     @Test fun unknownAdrenoRetainsTurnipCompatibility() {
         val gpu = GpuInfo("Adreno", 0, GpuInfo.Family.ADRENO_UNKNOWN, "", false)
         assertEquals(GpuInfo.Vendor.QUALCOMM, gpu.vendor)

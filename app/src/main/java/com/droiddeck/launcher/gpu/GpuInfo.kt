@@ -16,6 +16,7 @@ data class GpuInfo(
     val modelSource: String = "",
     val kgslChipId: String = "",
     val platformGpuModel: Int = 0,
+    val vulkanVendorId: Int? = null,
 ) {
     enum class Family(val label: String) {
         A8XX("Adreno 8xx"),
@@ -30,8 +31,8 @@ data class GpuInfo(
 
     enum class Vendor { QUALCOMM, ARM, OTHER }
 
-    val supportsTurnip: Boolean get() = family != Family.NOT_ADRENO
-    val vendor: Vendor get() = vendorOf(supportsTurnip, name)
+    val supportsTurnip: Boolean get() = family != Family.NOT_ADRENO && vendor == Vendor.QUALCOMM
+    val vendor: Vendor get() = vendorOf(family != Family.NOT_ADRENO, name, vulkanVendorId)
 
     enum class Support { TESTED, UNTESTED, UNSUPPORTED }
 
@@ -91,10 +92,14 @@ data class GpuInfo(
                 oneUi8Gen2 = samsung && model == 740,
                 kgslName = raw.orEmpty(), modelSource = source, kgslChipId = chipId,
                 platformGpuModel = platformGpuModel,
+                vulkanVendorId = VulkanInfo.cachedOrNull()?.get("vendor_id")?.removePrefix("0x")?.toIntOrNull(16),
             )
         }
 
-        internal fun vendorOf(adreno: Boolean, renderer: String): Vendor = when {
+        internal fun vendorOf(adreno: Boolean, renderer: String, vendorId: Int? = null): Vendor = when {
+            vendorId == 0x13b5 -> Vendor.ARM
+            vendorId == 0x5143 -> Vendor.QUALCOMM
+            vendorId != null -> Vendor.OTHER
             adreno -> Vendor.QUALCOMM
             Regex("(?i)\\b(mali|immortalis)\\b").containsMatchIn(renderer) -> Vendor.ARM
             else -> Vendor.OTHER

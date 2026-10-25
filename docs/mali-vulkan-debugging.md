@@ -197,3 +197,23 @@ compositor now enables DMA-BUF extensions only as a supported group, preserving
 its shared-memory upload path. Adreno with all extensions retains the existing
 DMA-BUF path. GPU composition, Gamescope extension requirements and actual
 shared-memory swapchain presentation remain device validation gates.
+
+## SM-X820 follow-up: DRM render-node check
+
+`DroidDeck-2026-10-25-04-steam.zip` confirms the experimental Linux driver
+loads and accesses Kbase CSF uAPI 1.21. The Linux probe reports success (0)
+for instance creation, physical-device enumeration (one Mali device), minimal
+logical-device creation, Wayland surface creation and surface-support query;
+queue presentation support is true. Gamescope selects that same Mali device,
+then fails with `physical device has no render node` before backend creation.
+Steam UI is still unverified.
+
+The bundled driver advertises `VK_EXT_physical_device_drm` even on its Kbase
+path, where neither DRM node exists. Gamescope 3.16.29 treats that advertisement
+as requiring a render node even for SDL swapchain presentation. Local patch
+`0002-kbase-no-drm-extension.patch` disables only this optional extension on
+Kbase; DRM devices retain it. This uses Gamescope's existing path for drivers
+without DRM device properties, without inventing a node or changing the Mali
+kernel interface. DRM format-modifier and external-memory extensions are not
+removed. Successful rebuild does not establish successful Gamescope startup;
+the next device log must show progress beyond the render-node check.

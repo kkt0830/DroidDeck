@@ -1,0 +1,5 @@
+--- a/src/panfrost/vulkan/panvk_vX_physical_device.c
++++ b/src/panfrost/vulkan/panvk_vX_physical_device.c
+@@ -199,1 +199,1 @@
+-      .EXT_physical_device_drm = true,
++      .EXT_physical_device_drm = !device->kbase_node_path[0],

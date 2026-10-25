@@ -15,8 +15,10 @@ git -C mesa checkout --detach FETCH_HEAD
 test "$(git -C mesa rev-parse HEAD)" = "$mesa_commit"
 # This is the universal CSF series, including v12/G720; the g720 profile is incomplete.
 bash driver/scripts/apply-patches.sh --profile g615-v11-csf --mesa "$PWD/mesa"
-git -C mesa apply --check "$root/tools/panvk/patches/0001-fix-command-pool-list.patch"
-git -C mesa apply "$root/tools/panvk/patches/0001-fix-command-pool-list.patch"
+for patch in "$root"/tools/panvk/patches/*.patch; do
+  git -C mesa apply --check "$patch"
+  git -C mesa apply "$patch"
+done
 meson setup build mesa -Dbuildtype=release -Dplatforms=x11,wayland \
   -Dgallium-drivers= -Dvulkan-drivers=panfrost -Dpanfrost-kmds=kbase \
   -Degl=disabled -Dgles1=disabled -Dgles2=disabled -Dopengl=false \

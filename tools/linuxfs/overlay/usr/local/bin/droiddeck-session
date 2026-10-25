@@ -851,6 +851,8 @@ BUSCONF
       _bl_cef=(-cef-force-gpu -cef-ozone-platform=x11 -cef-use-gl=angle -cef-use-angle=gl)
       export DISABLE_GAMESCOPE_WSI=1
       export BL_WEBHELPER_GRAPHICS_LOG=1
+      export BL_WEBHELPER_HIDE_TRACER=1
+      echo "== experimental Mali: tier0 uses existing PRoot debugger compatibility; Chromium status reads remain unchanged"
       export BL_WEBHELPER_ARGS="--no-zygote --ignore-gpu-blocklist --use-gl=angle --use-angle=gl --ozone-platform=x11 -AudioServiceOutOfProcess"
       echo "== experimental Mali: Steam UI forces ANGLE/OpenGL at WebHelper exec over Zink/PanVK; client Gamescope WSI disabled; separate CEF GPU process"
     fi

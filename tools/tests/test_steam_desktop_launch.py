@@ -151,6 +151,8 @@ class DesktopSteamLaunchTest(unittest.TestCase):
                 self.assertEqual('ARG:-cef-use-angle=vulkan' in result, not bool(probe))
                 check = subprocess.check_output(['bash', '-c', setup + '\nprintf "WSI:%s\nARGS:%s\n" "${DISABLE_GAMESCOPE_WSI:-unset}" "${BL_WEBHELPER_ARGS:-unset}"'], env=env, text=True)
                 self.assertIn('WSI:1' if probe else 'WSI:unset', check)
+                tracer = subprocess.check_output(['bash', '-c', setup + '\nprintf "TRACER:%s\n" "${BL_WEBHELPER_HIDE_TRACER:-unset}"'], env=env, text=True)
+                self.assertIn('TRACER:1' if probe else 'TRACER:unset', tracer)
                 self.assertIn('ARGS:--no-zygote --ignore-gpu-blocklist --use-gl=angle --use-angle=gl --ozone-platform=x11 -AudioServiceOutOfProcess' if probe else 'ARGS:unset', check)
                 self.assertIn('GPU:zink:/driver/panfrost.json', result)
 

@@ -316,3 +316,22 @@ probe. The code is validated separately with Lavapipe and Vulkan validation laye
 on CI; that CPU result does not verify Mali. A probe-only build can reuse an
 existing checksum-verified driver artifact without rebuilding or changing the
 ICD. Its provenance records both the parent driver run and new probe source.
+
+## SM-X820 follow-up: GPU work passes, runtime assertion compatibility
+
+The latest session log confirms real Mali queue submission, fence completion,
+and exact red-pixel clear/copy/readback all succeed. The companion WebHelper
+logs confirm ANGLE/OpenGL on browser and GPU-process exec and show no explicit
+device-lost failure. None of these observations proves full shader/presentation
+or Steam login success; the remaining restart reason is still unconfirmed.
+
+The existing x86 Steam runtime path enables `BL_WEBHELPER_HIDE_TRACER=1` because
+tier0 can mistake PRoot's ptrace supervision for a debugger and trap on an
+assertion. Experimental native Mali sessions now opt into that same existing
+compatibility behavior. It changes status reads only for WebHelper calls from
+libtier0_s.so; Chromium's own status reads remain real. No driver bytes, global
+tracer policy or ordinary Adreno launch settings change. This is a targeted
+runtime compatibility hypothesis to test on the device, not proof that a debugger
+check caused the observed loop. A native test uses an actual traced child and
+calls through a libtier0_s.so test DSO to verify both the opt-in and Chromium
+exception behavior. All 23 targeted launch/preload/tracer tests passed locally.

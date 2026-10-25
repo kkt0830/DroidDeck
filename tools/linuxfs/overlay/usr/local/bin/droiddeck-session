@@ -836,6 +836,10 @@ BUSCONF
     [ "${BL_STEAM_UI:-}" = desktop ] && _bl_ui=()
     _bl_cef=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle=vulkan)
     [ "${steam_cef_gpu:-1}" = 1 ] || _bl_cef=(-cef-disable-gpu)
+    if [ -n "${BL_PANVK_PROBE:-}" ]; then
+      _bl_cef=(-cef-disable-gpu)
+      echo "== experimental Mali: Steam browser UI GPU acceleration disabled; Gamescope retains PanVK"
+    fi
     if [ "${BL_DESKTOP:-}" = 1 ] && [ "${BL_STEAM_UI:-}" = desktop ]; then
       _bl_cef=(-cef-disable-gpu)
       _bl_ui=(-nobigpicture)

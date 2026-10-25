@@ -135,3 +135,17 @@ class DesktopSteamLaunchTest(unittest.TestCase):
                                                  env=env, text=True)
                 self.assertEqual('-cef-disable-gpu' in result, software)
                 self.assertEqual('-cef-use-angle=vulkan' in result, not software)
+
+    def test_experimental_mali_disables_only_cef_acceleration(self):
+        source = (BIN / 'droiddeck-session').read_text()
+        setup = source[source.index('    _bl_ui=(-gamepadui)'):source.index('    if [ "${BL_STEAM_UI:-}" != desktop ]; then')]
+        for probe in ['', '/driver/panvk-probe']:
+            with self.subTest(probe=probe):
+                env = dict(self.env, BL_DESKTOP='', BL_STEAM_UI='bigpicture',
+                           BL_PANVK_PROBE=probe, GALLIUM_DRIVER='zink',
+                           VK_DRIVER_FILES='/driver/panfrost.json')
+                script = setup + '\nprintf "ARG:%s\n" "${_bl_cef[@]}"; printf "GPU:%s:%s\n" "$GALLIUM_DRIVER" "$VK_DRIVER_FILES"'
+                result = subprocess.check_output(['bash', '-c', script], env=env, text=True)
+                self.assertEqual('ARG:-cef-disable-gpu' in result, bool(probe))
+                self.assertEqual('ARG:-cef-use-angle=vulkan' in result, not bool(probe))
+                self.assertIn('GPU:zink:/driver/panfrost.json', result)

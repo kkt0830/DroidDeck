@@ -217,3 +217,18 @@ without DRM device properties, without inventing a node or changing the Mali
 kernel interface. DRM format-modifier and external-memory extensions are not
 removed. Successful rebuild does not establish successful Gamescope startup;
 the next device log must show progress beyond the render-node check.
+
+## SM-X820 follow-up: Steam WebHelper black screen
+
+`DroidDeck-2026-10-25-08-steam.zip` uses the corrected bd02913f driver.
+Gamescope creates its nested swapchain, starts Xwayland, and the app records
+`frame.first` and `session.ready`. These events do not prove a visible login
+screen. WebHelper records a fatal X IO error on display :0, restarts, and Steam
+subsequently exits with status 0. The causal source of the X connection failure
+is not established; the empty Android crash buffer does not rule out guest faults.
+
+The next experimental build selects `-cef-disable-gpu` only for the Steam browser
+UI in a bundled Mali session. This tests a software-rendered login UI while
+retaining PanVK for Gamescope and preserving the Vulkan driver environment.
+Adreno and ordinary builds retain their previous CEF selection. This is a
+compatibility workaround to validate on the device, not proof of a complete fix.

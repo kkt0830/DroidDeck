@@ -136,7 +136,7 @@ class DesktopSteamLaunchTest(unittest.TestCase):
                 self.assertEqual('-cef-disable-gpu' in result, software)
                 self.assertEqual('-cef-use-angle=vulkan' in result, not software)
 
-    def test_experimental_mali_disables_only_cef_acceleration(self):
+    def test_experimental_mali_selects_gl_without_changing_gpu_driver(self):
         source = (BIN / 'droiddeck-session').read_text()
         setup = source[source.index('    _bl_ui=(-gamepadui)'):source.index('    if [ "${BL_STEAM_UI:-}" != desktop ]; then')]
         for probe in ['', '/driver/panvk-probe']:
@@ -146,6 +146,10 @@ class DesktopSteamLaunchTest(unittest.TestCase):
                            VK_DRIVER_FILES='/driver/panfrost.json')
                 script = setup + '\nprintf "ARG:%s\n" "${_bl_cef[@]}"; printf "GPU:%s:%s\n" "$GALLIUM_DRIVER" "$VK_DRIVER_FILES"'
                 result = subprocess.check_output(['bash', '-c', script], env=env, text=True)
-                self.assertEqual('ARG:-cef-disable-gpu' in result, bool(probe))
+                self.assertNotIn('ARG:-cef-disable-gpu', result)
+                self.assertEqual('ARG:-cef-use-angle=gl' in result, bool(probe))
                 self.assertEqual('ARG:-cef-use-angle=vulkan' in result, not bool(probe))
+                check = subprocess.check_output(['bash', '-c', setup + '\nprintf "WSI:%s\nARGS:%s\n" "${DISABLE_GAMESCOPE_WSI:-unset}" "${BL_WEBHELPER_ARGS:-unset}"'], env=env, text=True)
+                self.assertIn('WSI:1' if probe else 'WSI:unset', check)
+                self.assertIn('ARGS:--no-zygote -AudioServiceOutOfProcess' if probe else 'ARGS:unset', check)
                 self.assertIn('GPU:zink:/driver/panfrost.json', result)

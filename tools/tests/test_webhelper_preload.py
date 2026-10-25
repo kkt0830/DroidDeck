@@ -57,6 +57,16 @@ class WebhelperPreloadTest(unittest.TestCase):
         other = ["/usr/bin/steam", "--enable-features=A"]
         self.assertEqual(self.argv(*other), other)
 
+    def test_mali_flags_preserve_separate_gpu_process(self):
+        out = self.argv(WEBHELPER, "--use-angle=gl", "--enable-features=A",
+                        spec="--no-zygote -AudioServiceOutOfProcess")
+        self.assertIn("--no-zygote", out)
+        self.assertIn("--use-angle=gl", out)
+        self.assertIn("--disable-features=AudioServiceOutOfProcess", out)
+        self.assertNotIn("--in-process-gpu", out)
+        child = [WEBHELPER, "--type=gpu-process", "--use-angle=gl"]
+        self.assertEqual(self.argv(*child, spec="--no-zygote -AudioServiceOutOfProcess"), child)
+
     def test_stock_turns_it_off(self):
         args = [WEBHELPER, "--enable-features=A"]
         self.assertEqual(self.argv(*args, spec="stock"), args)

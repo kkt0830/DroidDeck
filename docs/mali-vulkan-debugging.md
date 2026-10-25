@@ -232,3 +232,24 @@ UI in a bundled Mali session. This tests a software-rendered login UI while
 retaining PanVK for Gamescope and preserving the Vulkan driver environment.
 Adreno and ordinary builds retain their previous CEF selection. This is a
 compatibility workaround to validate on the device, not proof of a complete fix.
+
+## SM-X820 follow-up: software CEF restart loop
+
+The `2026-10-25-09-steam` session lasts about 10.6 minutes without `frame.first`.
+The software CEF option is present in both session and WebHelper command logs.
+WebHelper repeatedly reaches BrowserReady, then Steam restarts it roughly every
+10 seconds (`startcount=62`). UI transport connects transiently, so the transport
+errors alone do not establish a network failure. This disproves the usefulness
+of the software-UI workaround for the supplied run; the restart cause remains
+unconfirmed.
+
+The next test replaces that workaround with CEF ANGLE/OpenGL over Zink/PanVK,
+explicit X11, and no client Gamescope WSI layer in experimental Mali sessions.
+The separate CEF GPU process is retained by omitting the preload's default
+`--in-process-gpu`; `--no-zygote` and the existing audio feature workaround remain.
+This avoids both direct CEF ANGLE/Vulkan and the all-software UI path. Gamescope
+itself starts before these client-only settings, using the existing SDL/Wayland
+PanVK path. Client applications in that experimental session inherit the disabled
+Gamescope WSI layer and use the ordinary ICD WSI instead. Ordinary/Adreno launch
+options are unchanged. This remains a compatibility experiment, requiring an
+actual visible login screen and stable WebHelper on SM-X820.

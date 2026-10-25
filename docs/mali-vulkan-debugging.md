@@ -253,3 +253,20 @@ PanVK path. Client applications in that experimental session inherit the disable
 Gamescope WSI layer and use the ordinary ICD WSI instead. Ordinary/Adreno launch
 options are unchanged. This remains a compatibility experiment, requiring an
 actual visible login screen and stable WebHelper on SM-X820.
+
+## SM-X820 follow-up: standard login UI experiment
+
+The `2026-10-25-01-steam` session confirms ANGLE/OpenGL selection and first-frame
+notification, but the UI window disappears and Steam shuts down about 17 seconds
+after launch. WebHelper transport reaches connected before the restart, so
+transient transport errors are not sufficient evidence of a broken network.
+The visible login screen remains unverified. The GL route alone did not fix it.
+
+The next test uses standard Steam desktop UI (`-nobigpicture`) for experimental
+Mali instead of `-gamepadui -steamdeck -steamos3`, still nested inside Gamescope.
+This avoids the failing Deck login flow without claiming its root cause is known.
+ANGLE/OpenGL and the corrected PanVK remain. The external mangoapp overlay is
+also disabled only for experimental Mali: the device logs confirm repeated
+`ghc::filesystem::filesystem_error` from `/sys/class/thermal/` permission denial.
+That overlay failure is separate from the unproven cause of WebHelper restarts.
+Ordinary sessions retain their original UI choice and overlay behavior.

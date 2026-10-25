@@ -153,3 +153,32 @@ class DesktopSteamLaunchTest(unittest.TestCase):
                 self.assertIn('WSI:1' if probe else 'WSI:unset', check)
                 self.assertIn('ARGS:--no-zygote -AudioServiceOutOfProcess' if probe else 'ARGS:unset', check)
                 self.assertIn('GPU:zink:/driver/panfrost.json', result)
+
+    def test_mali_login_uses_desktop_without_deck_flags(self):
+        source = (BIN / 'droiddeck-session').read_text()
+        start = source.index('    if [ -n "${BL_PANVK_PROBE:-}" ]; then\n      export BL_STEAM_UI=desktop')
+        end = source.index('    export STEAMOS_STEAM_SHUTDOWN_SENTINEL', start)
+        setup = source[start:end]
+        for probe in ['', '/driver/panvk-probe']:
+            with self.subTest(probe=probe):
+                env = dict(self.env, BL_DESKTOP='', BL_STEAM_UI='bigpicture',
+                           BL_PANVK_PROBE=probe, steam_x64='0')
+                output = subprocess.check_output(['bash', '-c', setup + '\nprintf "UI:%s\n" "${_bl_ui[@]}"'], env=env, text=True)
+                if probe:
+                    self.assertIn('UI:-nobigpicture', output)
+                    self.assertNotIn('UI:-gamepadui', output)
+                    self.assertNotIn('UI:-steamdeck', output)
+                    self.assertNotIn('UI:-steamos3', output)
+                else:
+                    self.assertIn('UI:-gamepadui', output)
+                    self.assertIn('UI:-steamdeck', output)
+                    self.assertIn('UI:-steamos3', output)
+
+    def test_mali_skips_failing_mangoapp_without_changing_ordinary_sessions(self):
+        source = (BIN / 'droiddeck-session').read_text()
+        start = source.index('  if [ -n "${BL_PANVK_PROBE:-}" ]; then\n    export BL_MANGOAPP=0')
+        end = source.index('  if [ "$mode" = steam ] && [ "${BL_MANGOAPP:-1}" = 1 ]', start)
+        for probe in ['', '/driver/panvk-probe']:
+            env = dict(self.env, BL_PANVK_PROBE=probe, BL_MANGOAPP='1')
+            output = subprocess.check_output(['bash', '-c', source[start:end] + '\nprintf "HUD:%s\n" "$BL_MANGOAPP"'], env=env, text=True)
+            self.assertIn('HUD:0' if probe else 'HUD:1', output)

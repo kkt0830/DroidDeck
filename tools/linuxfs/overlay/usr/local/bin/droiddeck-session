@@ -264,6 +264,10 @@ if [ -z "${BL_INSIDE:-}" ]; then
   [ "$mode" = steam ] && args+=(--default-touch-mode 4)
   [ "${BL_HDR:-0}" = 1 ] && args+=(--hdr-enabled)
   [ -n "${BL_GAMESCOPE_ARGS:-}" ] && read -r -a _bl_extra <<<"$BL_GAMESCOPE_ARGS" && args+=("${_bl_extra[@]}")
+  if [ -n "${BL_PANVK_PROBE:-}" ]; then
+    export BL_MANGOAPP=0
+    echo "== experimental Mali: mangoapp disabled (thermal sysfs access is unavailable on the test device)"
+  fi
   if [ "$mode" = steam ] && [ "${BL_MANGOAPP:-1}" = 1 ] \
      && [ "${BL_STEAM_UI:-}" != desktop ] && command -v mangoapp >/dev/null 2>&1; then
     MANGOHUD_CONFIGFILE=/tmp/droiddeck-mangohud.conf
@@ -832,8 +836,15 @@ BUSCONF
     fi
     [ -n "${BL_LAUNCH_DIR:-}" ] && mkdir -p "$BL_LAUNCH_DIR/agent" && echo "$BL_CDP_PORT" > "$BL_LAUNCH_DIR/agent/cdp-port"
     [ "$steam_x64" = 1 ] || "${_bl_compat_env[@]}" droiddeck-steam-compat "$steam_root" 2>&1 &
+    if [ -n "${BL_PANVK_PROBE:-}" ]; then
+      export BL_STEAM_UI=desktop
+      echo "== experimental Mali: using the standard Steam desktop login UI inside Gamescope"
+    fi
     _bl_ui=(-gamepadui)
-    [ "${BL_STEAM_UI:-}" = desktop ] && _bl_ui=()
+    if [ "${BL_STEAM_UI:-}" = desktop ]; then
+      _bl_ui=()
+      [ -z "${BL_PANVK_PROBE:-}" ] || _bl_ui=(-nobigpicture)
+    fi
     _bl_cef=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle=vulkan)
     [ "${steam_cef_gpu:-1}" = 1 ] || _bl_cef=(-cef-disable-gpu)
     if [ -n "${BL_PANVK_PROBE:-}" ]; then

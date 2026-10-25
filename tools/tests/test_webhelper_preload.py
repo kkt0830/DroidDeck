@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -66,6 +67,28 @@ class WebhelperPreloadTest(unittest.TestCase):
         self.assertNotIn("--in-process-gpu", out)
         child = [WEBHELPER, "--type=gpu-process", "--use-angle=gl"]
         self.assertEqual(self.argv(*child, spec="--no-zygote -AudioServiceOutOfProcess"), child)
+
+    def test_actual_mali_launch_spec_reaches_webhelper_argv(self):
+        session = (PRELOAD.parent / 'overlay/usr/local/bin/droiddeck-session').read_text()
+        spec = re.search(r'export BL_WEBHELPER_ARGS="([^"]+)"', session).group(1)
+        out = self.argv(WEBHELPER, "--no-sandbox", "--enable-features=A", spec=spec)
+        for option in ["--use-gl=angle", "--use-angle=gl", "--ozone-platform=x11", "--ignore-gpu-blocklist"]:
+            self.assertIn(option, out)
+        self.assertIn("--disable-features=AudioServiceOutOfProcess", out)
+        self.assertIn("--no-sandbox", out)
+        self.assertNotIn("--in-process-gpu", out)
+        self.assertNotIn("--disable-gpu", out)
+
+    def test_graphics_trace_reports_only_allowed_switches(self):
+        env = dict(os.environ, BL_WEBHELPER_ARGS="--use-gl=angle --use-angle=gl", BL_WEBHELPER_GRAPHICS_LOG="1")
+        browser = subprocess.run([str(self.program), WEBHELPER, "--auth-token=synthetic-private"], env=env,
+                                 capture_output=True, text=True, check=True)
+        self.assertIn("graphics exec browser: --use-gl=angle --use-angle=gl", browser.stderr)
+        self.assertNotIn("synthetic-private", browser.stderr)
+        gpu = subprocess.run([str(self.program), WEBHELPER, "--type=gpu-process", "--use-angle=gl"], env=env,
+                             capture_output=True, text=True, check=True)
+        self.assertIn("graphics exec gpu-process: --use-angle=gl", gpu.stderr)
+        self.assertNotIn("--use-gl=angle", gpu.stdout)
 
     def test_stock_turns_it_off(self):
         args = [WEBHELPER, "--enable-features=A"]

@@ -270,3 +270,26 @@ also disabled only for experimental Mali: the device logs confirm repeated
 `ghc::filesystem::filesystem_error` from `/sys/class/thermal/` permission denial.
 That overlay failure is separate from the unproven cause of WebHelper restarts.
 Ordinary sessions retain their original UI choice and overlay behavior.
+
+## SM-X820 follow-up: force graphics options at WebHelper exec
+
+`2026-10-25-03-steam` confirms the standard login UI and successful Vulkan
+preflight, but no first-frame notification. Steam requests DesktopLoginWindow,
+then WebHelper restarts approximately every ten seconds. The session ends via
+an explicit clean-exit request after about 138 seconds. This is not evidence
+of a new Vulkan initialization failure or of a spontaneous client crash.
+
+Although the Steam launch command includes CEF ANGLE/OpenGL switches, the
+recorded WebHelper GPU child command contains no explicit use-gl/use-angle
+switches. This does not prove which implementation Chromium selected internally,
+but shows that the intended graphics route was not validated at the exec boundary.
+The experimental Mali preload argument specification now supplies ANGLE/OpenGL,
+X11 and ignore-gpu-blocklist directly when launching the WebHelper browser,
+in addition to Steam's CEF request. GPU child arguments remain unmodified so
+Chromium can choose its own subprocess arguments.
+
+A scoped graphics trace records only a fixed allowlist of backend switches for
+browser/GPU-process exec, without dumping other arguments. This makes the next
+log distinguish the new launch route from an ignored Steam CEF request. The
+change does not alter the Kbase kernel backend or claim hardware rendering is
+fixed. Actual visible login and session stability remain device tests.

@@ -151,7 +151,7 @@ class DesktopSteamLaunchTest(unittest.TestCase):
                 self.assertEqual('ARG:-cef-use-angle=vulkan' in result, not bool(probe))
                 check = subprocess.check_output(['bash', '-c', setup + '\nprintf "WSI:%s\nARGS:%s\n" "${DISABLE_GAMESCOPE_WSI:-unset}" "${BL_WEBHELPER_ARGS:-unset}"'], env=env, text=True)
                 self.assertIn('WSI:1' if probe else 'WSI:unset', check)
-                self.assertIn('ARGS:--no-zygote -AudioServiceOutOfProcess' if probe else 'ARGS:unset', check)
+                self.assertIn('ARGS:--no-zygote --ignore-gpu-blocklist --use-gl=angle --use-angle=gl --ozone-platform=x11 -AudioServiceOutOfProcess' if probe else 'ARGS:unset', check)
                 self.assertIn('GPU:zink:/driver/panfrost.json', result)
 
     def test_mali_login_uses_desktop_without_deck_flags(self):

@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 #ifndef WEBHELPER_DEFAULT
@@ -25,11 +26,37 @@ static char *join_features(const char *have, const char *add) {
   return strcat(out, add);
 }
 
+static void trace_graphics(const char *path, char *const argv[]) {
+  const char *enabled = getenv("BL_WEBHELPER_GRAPHICS_LOG");
+  if (!enabled || strcmp(enabled, "1") || !path || !argv) return;
+  const char *base = strrchr(path, '/');
+  if (strcmp(base ? base + 1 : path, "steamwebhelper")) return;
+  const char *stage = "browser";
+  for (int i = 1; argv[i]; i++) {
+    if (!strncmp(argv[i], "--type=", 7)) {
+      if (strcmp(argv[i], "--type=gpu-process")) return;
+      stage = "gpu-process";
+    }
+  }
+  const char *flags[] = {"--use-gl=angle", "--use-gl=desktop", "--use-gl=egl",
+    "--use-angle=gl", "--use-angle=vulkan", "--use-angle=swiftshader-webgl",
+    "--ozone-platform=x11", "--ozone-platform=wayland", "--disable-gpu",
+    "--disable-gpu-compositing", "--in-process-gpu", "--no-zygote"};
+  fprintf(stderr, "== WebHelper graphics exec %s:", stage);
+  int found = 0;
+  for (int i = 1; argv[i]; i++) {
+    for (size_t j = 0; j < sizeof(flags) / sizeof(*flags); j++) {
+      if (!strcmp(argv[i], flags[j])) { fprintf(stderr, " %s", flags[j]); found = 1; }
+    }
+  }
+  fprintf(stderr, "%s\n", found ? "" : " no explicit graphics switches");
+}
+
 __attribute__((visibility("hidden"))) char *const *bl_webhelper_argv(const char *path, char *const argv[]) {
-  if (!is_webhelper_browser(path, argv)) return argv;
+  if (!is_webhelper_browser(path, argv)) { trace_graphics(path, argv); return argv; }
   const char *spec = getenv("BL_WEBHELPER_ARGS");
   if (!spec || !*spec) spec = WEBHELPER_DEFAULT;
-  if (!strcmp(spec, "stock")) return argv;
+  if (!strcmp(spec, "stock")) { trace_graphics(path, argv); return argv; }
 
   int argc = 0;
   while (argv[argc]) argc++;
@@ -69,5 +96,6 @@ __attribute__((visibility("hidden"))) char *const *bl_webhelper_argv(const char 
   if (enable && (flag = malloc(strlen(enable) + 19))) out[n++] = strcat(strcpy(flag, "--enable-features="), enable);
   if (disable && (flag = malloc(strlen(disable) + 20))) out[n++] = strcat(strcpy(flag, "--disable-features="), disable);
   out[n] = NULL;
+  trace_graphics(path, out);
   return out;
 }

@@ -21,6 +21,8 @@ static int report(const char *gate, VkResult result) {
     fflush(stdout);
     return result == VK_SUCCESS;
 }
+#include "gpu_readback.h"
+
 int main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
     uint32_t n = 0;
@@ -68,6 +70,11 @@ int main(void) {
     VkDevice device;
     if (!report("logical_create_minimal", vkCreateDevice(physical, &di, NULL, &device))) {
         vkDestroyInstance(instance, NULL); return 1;
+    }
+    if (!probe_gpu_readback(physical, device, q)) {
+        vkDestroyDevice(device, NULL);
+        vkDestroyInstance(instance, NULL);
+        return 2;
     }
     struct wl_display *display = wl_display_connect(NULL);
     struct wl_registry *registry = NULL;

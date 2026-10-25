@@ -124,7 +124,7 @@ fi
 if [ -n "${BL_PANVK_PROBE:-}" ] && [ -z "${BL_INSIDE:-}" ]; then
   export MESA_VK_WSI_DEBUG=sw
   echo "== experimental PanVK: Linux instance/device/Wayland preflight"
-  timeout 30s "$BL_PANVK_PROBE"
+  timeout --kill-after=5s 30s "$BL_PANVK_PROBE"
   bl_probe_status=$?
   echo "== experimental PanVK preflight status=$bl_probe_status"
   if [ "$bl_probe_status" -ne 0 ]; then

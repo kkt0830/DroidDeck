@@ -293,3 +293,26 @@ browser/GPU-process exec, without dumping other arguments. This makes the next
 log distinguish the new launch route from an ignored Steam CEF request. The
 change does not alter the Kbase kernel backend or claim hardware rendering is
 fixed. Actual visible login and session stability remain device tests.
+
+## Follow-up: verify GPU command execution instead of changing UI switches
+
+The separately supplied WebHelper log contains both browser and GPU-process
+exec traces with `--use-gl=angle --use-angle=gl --ozone-platform=x11`. This
+confirms the newest graphics-option injection runs. Neither that log nor the
+current CEF log identifies a device-lost error. The previous hypothesis that
+backend option delivery alone explained the failure is insufficient.
+
+The Linux probe now creates an optimal RGBA8 image, allocates GPU and host-visible
+memory, records a red clear and image-to-buffer copy, submits the command buffer,
+waits up to five seconds for a fence, invalidates mapped host memory, and checks
+all four returned pixels. Each operation is logged separately. A mismatched pixel
+or failed submission stops startup with probe status 2. A timed-out fence exits
+the process without destroying resources that might still be in use; the outer
+probe timeout now also escalates to SIGKILL after five seconds.
+
+This is a transfer/clear/readback check, not a shader, swapchain presentation or
+Steam login test. It tests work execution missing from the earlier minimal-device
+probe. The code is validated separately with Lavapipe and Vulkan validation layers
+on CI; that CPU result does not verify Mali. A probe-only build can reuse an
+existing checksum-verified driver artifact without rebuilding or changing the
+ICD. Its provenance records both the parent driver run and new probe source.

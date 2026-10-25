@@ -57,7 +57,9 @@ jobs:
           set -euo pipefail
           sudo apt-get install -y mesa-vulkan-drivers vulkan-validationlayers
           cc -O2 -Wall -Wextra -Werror tools/panvk/probe.c -o /tmp/probe-test $(pkg-config --cflags --libs vulkan wayland-client)
-          VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.aarch64.json /tmp/probe-test > panvk-artifact/probe-cpu-validation.log 2>&1
+          CPU_ICD=$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' -print -quit)
+          test -n "$CPU_ICD"
+          VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation VK_DRIVER_FILES="$CPU_ICD" /tmp/probe-test > panvk-artifact/probe-cpu-validation.log 2>&1 || { cat panvk-artifact/probe-cpu-validation.log; exit 1; }
           cat panvk-artifact/probe-cpu-validation.log
           grep -q 'panvk_probe.gpu_clear_readback=pass' panvk-artifact/probe-cpu-validation.log
           if grep -E 'Validation Error|VUID-' panvk-artifact/probe-cpu-validation.log; then exit 1; fi
@@ -69,4 +71,6 @@ jobs:
         if: failure()
         with:
           name: panvk-build-logs
-          path: panvk-build/build/meson-logs/
+          path: |
+            panvk-build/build/meson-logs/
+            panvk-artifact/probe-cpu-validation.log

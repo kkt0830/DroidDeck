@@ -27,8 +27,18 @@ class TurnipDriverAutoTest {
         }
     }
 
-    @Test fun otherDevicesRetainTheGenericFallback() {
-        assertEquals("turnip25.1.0", TurnipDriver(RuntimeEnvironment.getApplication()).autoId())
+    @Test fun nonAdrenoDevicesUseSystemVulkan() {
+        assertEquals("system", TurnipDriver(RuntimeEnvironment.getApplication()).autoId())
+    }
+
+    @Test fun stalePinnedAdrenoDriverIsIgnoredOnNonAdreno() {
+        val context = RuntimeEnvironment.getApplication()
+        com.droiddeck.launcher.session.SessionPrefs.setAndroidDriver(context, "turnip-sdk36")
+        try {
+            org.junit.Assert.assertNull(TurnipDriver(context).install())
+        } finally {
+            com.droiddeck.launcher.session.SessionPrefs.setAndroidDriver(context, "")
+        }
     }
 
     @Test fun normalizedGpuModelsSelectExistingGenerationDrivers() {

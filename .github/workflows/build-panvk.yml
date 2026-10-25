@@ -1,0 +1,76 @@
+name: Build experimental PanVK Kbase
+on:
+  push:
+    branches: [work]
+    paths: [tools/panvk/**, .github/workflows/build-panvk.yml]
+  workflow_dispatch:
+    inputs:
+      reuse_driver_run:
+        description: Successful driver run whose verified ICD is reused while rebuilding the probe
+        type: string
+        default: ''
+permissions:
+  contents: read
+  actions: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential ninja-build pkg-config python3-venv bison flex glslang-tools libdrm-dev libvulkan-dev libwayland-dev wayland-protocols libx11-dev libx11-xcb-dev libxcb-dri3-dev libxcb-present-dev libxcb-randr0-dev libxcb-shm0-dev libxcb-sync-dev libxcb-xfixes0-dev libxshmfence-dev libxxf86vm-dev libxrandr-dev zlib1g-dev libexpat1-dev libllvmspirvlib-18-dev libclang-18-dev libclc-18-dev cmake
+          python3 -m venv /tmp/panvk-venv
+          /tmp/panvk-venv/bin/pip install meson==1.8.5 mako==1.3.10 pyyaml==6.0.2 packaging==25.0
+      - name: Build SPIRV Tools
+        if: inputs.reuse_driver_run == ''
+        run: |
+          git clone --depth 1 --branch vulkan-sdk-1.4.321.0 https://github.com/KhronosGroup/SPIRV-Tools.git /tmp/spirv-tools
+          git clone --depth 1 --branch vulkan-sdk-1.4.321.0 https://github.com/KhronosGroup/SPIRV-Headers.git /tmp/spirv-tools/external/spirv-headers
+          cmake -S /tmp/spirv-tools -B /tmp/spirv-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSPIRV_SKIP_TESTS=ON -DSPIRV_SKIP_EXECUTABLES=ON -DCMAKE_INSTALL_PREFIX=/usr/local
+          cmake --build /tmp/spirv-build -j4
+          sudo cmake --install /tmp/spirv-build
+      - name: Build pinned glibc driver with Wayland WSI
+        if: inputs.reuse_driver_run == ''
+        run: |
+          export PATH="/tmp/panvk-venv/bin:$PATH"
+          bash tools/panvk/build.sh
+      - name: Reuse verified ICD and rebuild only the diagnostic probe
+        if: inputs.reuse_driver_run != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRIVER_RUN: ${{ inputs.reuse_driver_run }}
+        run: |
+          set -euo pipefail
+          [[ "$DRIVER_RUN" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$DRIVER_RUN" > /tmp/driver-run.json
+          jq -e '.conclusion == "success" and .path == ".github/workflows/build-panvk.yml" and .head_branch == "work"' /tmp/driver-run.json
+          gh run download "$DRIVER_RUN" --repo "$GITHUB_REPOSITORY" -n experimental-panvk-kbase-glibc -D panvk-artifact
+          (cd panvk-artifact && sha256sum -c SHA256SUMS)
+          cc -O2 -Wall -Wextra -Werror tools/panvk/probe.c -o panvk-artifact/panvk-probe $(pkg-config --cflags --libs vulkan wayland-client)
+          printf 'Probe source: %s\nReused ICD workflow run: %s\n' "$GITHUB_SHA" "$DRIVER_RUN" > panvk-artifact/PROBE_BUILD.txt
+          (cd panvk-artifact && sha256sum libvulkan_panfrost.so panvk-probe > SHA256SUMS)
+      - name: Validate GPU clear and readback code with CPU Vulkan
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y mesa-vulkan-drivers vulkan-validationlayers
+          cc -O2 -Wall -Wextra -Werror tools/panvk/probe.c -o /tmp/probe-test $(pkg-config --cflags --libs vulkan wayland-client)
+          CPU_ICD=$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' -print -quit)
+          test -n "$CPU_ICD"
+          VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation VK_DRIVER_FILES="$CPU_ICD" /tmp/probe-test > panvk-artifact/probe-cpu-validation.log 2>&1 || { cat panvk-artifact/probe-cpu-validation.log; exit 1; }
+          cat panvk-artifact/probe-cpu-validation.log
+          grep -q 'panvk_probe.gpu_clear_readback=pass' panvk-artifact/probe-cpu-validation.log
+          if grep -E 'Validation Error|VUID-' panvk-artifact/probe-cpu-validation.log; then exit 1; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: experimental-panvk-kbase-glibc
+          path: panvk-artifact/
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: panvk-build-logs
+          path: |
+            panvk-build/build/meson-logs/
+            panvk-artifact/probe-cpu-validation.log

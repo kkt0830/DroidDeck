@@ -256,6 +256,11 @@ public final class TurnipDriver {
     }
 
     private String choose() {
+        if (!GpuInfo.Companion.detect().getSupportsTurnip()
+                && QuestExperimental.INSTANCE.defaultAndroidDriver() == null) {
+            Log.w(TAG, "Non-Adreno GPU: ignoring AdrenoTools preferences; using Android system Vulkan");
+            return null;
+        }
         String chosen = SessionPrefs.androidDriver(context);
         if (chosen != null && !chosen.isEmpty()) {
             if (BUNDLED.contains(chosen)) {
@@ -272,6 +277,8 @@ public final class TurnipDriver {
     }
 
     private String chooseByDevice() {
+        if (!GpuInfo.Companion.detect().getSupportsTurnip()
+                && QuestExperimental.INSTANCE.defaultAndroidDriver() == null) return null;
         File override = new File(Environment.getExternalStorageDirectory(), OVERRIDE_FILE);
         String forced = override.isFile() ? FileUtils.readString(override) : null;
         if (forced != null) {
@@ -284,7 +291,9 @@ public final class TurnipDriver {
         }
         String quest = QuestExperimental.INSTANCE.defaultAndroidDriver();
         if (quest != null) return quest;
-        int model = GpuInfo.Companion.detect().getModel();
+        GpuInfo gpu = GpuInfo.Companion.detect();
+        if (!gpu.getSupportsTurnip()) return null;
+        int model = gpu.getModel();
         Log.i(TAG, "gpu model: " + (model == 0 ? "unknown" : model));
         return chooseByModel(model, android.os.Build.VERSION.SDK_INT);
     }

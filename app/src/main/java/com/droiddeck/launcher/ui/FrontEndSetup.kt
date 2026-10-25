@@ -219,17 +219,20 @@ internal fun SetupPanel(
                 when (tab) {
                     0 -> {
                         val gpuCheck: @Composable (Boolean) -> Unit = { divider ->
+                            val experimentalMali = remember(gpu) {
+                                com.droiddeck.launcher.gpu.ExperimentalMaliDriver.bundledFor(ctx, gpu)
+                            }
                             CheckRow(
                                 if (gpuOk) CheckState.OK else CheckState.WARN,
                                 when (gpu.support) {
                                     com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> stringResource(R.string.setup_gpu_supported)
                                     com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED -> stringResource(R.string.setup_gpu_untested)
-                                    else -> stringResource(R.string.setup_gpu_unsupported)
+                                    else -> stringResource(if (experimentalMali) R.string.setup_gpu_mali_experimental else R.string.setup_gpu_unsupported)
                                 },
                                 when (gpu.support) {
                                     com.droiddeck.launcher.gpu.GpuInfo.Support.TESTED -> stringResource(R.string.setup_gpu_detail, gpu.displayName(ctx), gpuName)
                                     com.droiddeck.launcher.gpu.GpuInfo.Support.UNTESTED -> stringResource(R.string.setup_gpu_untested_detail, gpu.displayName(ctx), gpu.supportText(ctx).replaceFirstChar { it.lowercase() })
-                                    else -> stringResource(R.string.setup_gpu_unsupported_detail, gpuName)
+                                    else -> if (experimentalMali) stringResource(R.string.setup_gpu_mali_experimental_detail) else stringResource(R.string.setup_gpu_unsupported_detail, gpuName)
                                 },
                                 divider = divider,
                             )

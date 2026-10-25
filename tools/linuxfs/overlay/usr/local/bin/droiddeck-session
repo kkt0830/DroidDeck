@@ -121,6 +121,16 @@ if [ -n "${BL_VK_DRIVER:-}" ]; then
   fi
   unset bl_icd_lib
 fi
+if [ -n "${BL_PANVK_PROBE:-}" ] && [ -z "${BL_INSIDE:-}" ]; then
+  export MESA_VK_WSI_DEBUG=sw
+  echo "== experimental PanVK: Linux instance/device/Wayland preflight"
+  timeout --kill-after=5s 30s "$BL_PANVK_PROBE"
+  bl_probe_status=$?
+  echo "== experimental PanVK preflight status=$bl_probe_status"
+  if [ "$bl_probe_status" -ne 0 ]; then
+    steam_setup_failed "$bl_probe_status"
+  fi
+fi
 export GAMESCOPE_FORCE_VULKAN_REALTIME=${BL_GAMESCOPE_REALTIME:-0}
 
 start_agent() {
@@ -232,7 +242,14 @@ if [ -z "${BL_INSIDE:-}" ]; then
   if [ "$mode" = steam ] && [ "${BL_CURSOR_COMPOSITE:-0}" = 1 ]; then
     export gamescope_cursor_composite=2
   fi
-  args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
+  bl_backend=wayland
+  if [ -n "${BL_PANVK_PROBE:-}" ]; then
+    bl_backend=sdl
+    export SDL_VIDEODRIVER=wayland
+    export MESA_VK_WSI_DEBUG=sw
+    echo "== experimental PanVK: SDL Wayland with shared-memory presentation"
+  fi
+  args=(--backend "$bl_backend" --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
   [ "$nested" != "$width" ] && args+=(-S stretch) && export BL_STRETCHED=1
   if [ "${BL_FPS:-0}" -gt 0 ]; then
     args+=(-r "$BL_FPS")
@@ -247,6 +264,10 @@ if [ -z "${BL_INSIDE:-}" ]; then
   [ "$mode" = steam ] && args+=(--default-touch-mode 4)
   [ "${BL_HDR:-0}" = 1 ] && args+=(--hdr-enabled)
   [ -n "${BL_GAMESCOPE_ARGS:-}" ] && read -r -a _bl_extra <<<"$BL_GAMESCOPE_ARGS" && args+=("${_bl_extra[@]}")
+  if [ -n "${BL_PANVK_PROBE:-}" ]; then
+    export BL_MANGOAPP=0
+    echo "== experimental Mali: mangoapp disabled (thermal sysfs access is unavailable on the test device)"
+  fi
   if [ "$mode" = steam ] && [ "${BL_MANGOAPP:-1}" = 1 ] \
      && [ "${BL_STEAM_UI:-}" != desktop ] && command -v mangoapp >/dev/null 2>&1; then
     MANGOHUD_CONFIGFILE=/tmp/droiddeck-mangohud.conf
@@ -815,10 +836,26 @@ BUSCONF
     fi
     [ -n "${BL_LAUNCH_DIR:-}" ] && mkdir -p "$BL_LAUNCH_DIR/agent" && echo "$BL_CDP_PORT" > "$BL_LAUNCH_DIR/agent/cdp-port"
     [ "$steam_x64" = 1 ] || "${_bl_compat_env[@]}" droiddeck-steam-compat "$steam_root" 2>&1 &
+    if [ -n "${BL_PANVK_PROBE:-}" ]; then
+      export BL_STEAM_UI=desktop
+      echo "== experimental Mali: using the standard Steam desktop login UI inside Gamescope"
+    fi
     _bl_ui=(-gamepadui)
-    [ "${BL_STEAM_UI:-}" = desktop ] && _bl_ui=()
+    if [ "${BL_STEAM_UI:-}" = desktop ]; then
+      _bl_ui=()
+      [ -z "${BL_PANVK_PROBE:-}" ] || _bl_ui=(-nobigpicture)
+    fi
     _bl_cef=(-cef-force-gpu -cef-use-gl=angle -cef-use-angle=vulkan)
     [ "${steam_cef_gpu:-1}" = 1 ] || _bl_cef=(-cef-disable-gpu)
+    if [ -n "${BL_PANVK_PROBE:-}" ]; then
+      _bl_cef=(-cef-force-gpu -cef-ozone-platform=x11 -cef-use-gl=angle -cef-use-angle=gl)
+      export DISABLE_GAMESCOPE_WSI=1
+      export BL_WEBHELPER_GRAPHICS_LOG=1
+      export BL_WEBHELPER_HIDE_TRACER=1
+      echo "== experimental Mali: tier0 uses existing PRoot debugger compatibility; Chromium status reads remain unchanged"
+      export BL_WEBHELPER_ARGS="--no-zygote --ignore-gpu-blocklist --use-gl=angle --use-angle=gl --ozone-platform=x11 -AudioServiceOutOfProcess"
+      echo "== experimental Mali: Steam UI forces ANGLE/OpenGL at WebHelper exec over Zink/PanVK; client Gamescope WSI disabled; separate CEF GPU process"
+    fi
     if [ "${BL_DESKTOP:-}" = 1 ] && [ "${BL_STEAM_UI:-}" = desktop ]; then
       _bl_cef=(-cef-disable-gpu)
       _bl_ui=(-nobigpicture)

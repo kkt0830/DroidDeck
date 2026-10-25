@@ -11,6 +11,11 @@ static const char *const EXTENSIONS[] = {
     "VK_EXT_robustness2", "VK_EXT_transform_feedback", "VK_EXT_custom_border_color",
     "VK_KHR_dynamic_rendering", "VK_EXT_extended_dynamic_state3", "VK_EXT_descriptor_indexing",
     "VK_KHR_timeline_semaphore", "VK_EXT_mesh_shader", "VK_KHR_ray_query",
+    "VK_KHR_external_memory_fd", "VK_EXT_external_memory_dma_buf",
+    "VK_EXT_image_drm_format_modifier", "VK_KHR_external_semaphore_fd",
+    "VK_KHR_external_fence_fd", "VK_ANDROID_external_memory_android_hardware_buffer",
+    "VK_EXT_queue_family_foreign", "VK_KHR_swapchain", "VK_KHR_present_id",
+    "VK_KHR_present_wait",
 };
 
 static const char *type_name(VkPhysicalDeviceType type) {
@@ -25,10 +30,12 @@ static const char *type_name(VkPhysicalDeviceType type) {
 
 JNIEXPORT jstring JNICALL
 Java_com_droiddeck_launcher_gpu_VulkanInfo_nativeQuery(JNIEnv *env, jclass clazz) {
-    static char out[4096];
+    char out[8192];
     size_t used = 0;
     out[0] = 0;
     void *lib = dlopen("libvulkan.so", RTLD_NOW | RTLD_LOCAL);
+    LINE("probe_scope=android-system (not Linux Gamescope)\n");
+    LINE("icd_loader=%s\n", lib ? "loaded" : "unavailable");
     if (!lib) { LINE("error=no Vulkan loader\n"); return (*env)->NewStringUTF(env, out); }
     PFN_vkGetInstanceProcAddr gipa = (PFN_vkGetInstanceProcAddr) dlsym(lib, "vkGetInstanceProcAddr");
     PFN_vkCreateInstance create = gipa ? (PFN_vkCreateInstance) gipa(NULL, "vkCreateInstance") : NULL;
@@ -38,11 +45,29 @@ Java_com_droiddeck_launcher_gpu_VulkanInfo_nativeQuery(JNIEnv *env, jclass clazz
     if (instanceVersion) instanceVersion(&loader);
     LINE("loader=%u.%u.%u\n", VK_API_VERSION_MAJOR(loader), VK_API_VERSION_MINOR(loader), VK_API_VERSION_PATCH(loader));
 
+    PFN_vkEnumerateInstanceExtensionProperties enumerateExtensions = gipa ?
+        (PFN_vkEnumerateInstanceExtensionProperties) gipa(NULL, "vkEnumerateInstanceExtensionProperties") : NULL;
+    VkExtensionProperties instanceExts[128];
+    uint32_t instanceExtCount = 128;
+    VkResult extResult = enumerateExtensions ? enumerateExtensions(NULL, &instanceExtCount, instanceExts) : VK_ERROR_INITIALIZATION_FAILED;
+    int androidSurface = 0, waylandSurface = 0;
+    if (extResult == VK_SUCCESS || extResult == VK_INCOMPLETE) {
+        for (uint32_t i = 0; i < instanceExtCount; i++) {
+            if (!strcmp(instanceExts[i].extensionName, "VK_KHR_android_surface")) androidSurface = 1;
+            if (!strcmp(instanceExts[i].extensionName, "VK_KHR_wayland_surface")) waylandSurface = 1;
+        }
+    }
+    LINE("instance_extensions_result=%d\nandroid_surface_available=%d\nwayland_surface_available=%d\n",
+         extResult, androidSurface, waylandSurface);
+    LINE("surface_creation=not-tested (requires an actual window)\n");
+
     VkApplicationInfo app = { .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO, .pApplicationName = "DroidDeck device info",
                               .apiVersion = loader >= VK_API_VERSION_1_1 ? VK_API_VERSION_1_1 : VK_API_VERSION_1_0 };
     VkInstanceCreateInfo info = { .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, .pApplicationInfo = &app };
     VkInstance instance = VK_NULL_HANDLE;
-    if (create(&info, NULL, &instance) != VK_SUCCESS) { LINE("error=vkCreateInstance failed\n"); dlclose(lib); return (*env)->NewStringUTF(env, out); }
+    VkResult created = create(&info, NULL, &instance);
+    LINE("instance_create_result=%d\n", created);
+    if (created != VK_SUCCESS) { LINE("error=vkCreateInstance failed\n"); dlclose(lib); return (*env)->NewStringUTF(env, out); }
 
 #define GET(name) PFN_##name name = (PFN_##name) gipa(instance, #name)
     GET(vkDestroyInstance); GET(vkEnumeratePhysicalDevices); GET(vkGetPhysicalDeviceProperties);
@@ -51,9 +76,33 @@ Java_com_droiddeck_launcher_gpu_VulkanInfo_nativeQuery(JNIEnv *env, jclass clazz
     uint32_t count = 1;
     VkPhysicalDevice device = VK_NULL_HANDLE;
     VkResult listed = vkEnumeratePhysicalDevices ? vkEnumeratePhysicalDevices(instance, &count, &device) : VK_ERROR_INITIALIZATION_FAILED;
+    LINE("physical_device_result=%d\nphysical_device_returned=%u\n", listed, count);
     if ((listed != VK_SUCCESS && listed != VK_INCOMPLETE) || count == 0 || !device || !vkGetPhysicalDeviceProperties) {
         LINE("error=no Vulkan device\n");
     } else {
+        GET(vkGetPhysicalDeviceQueueFamilyProperties); GET(vkCreateDevice); GET(vkGetDeviceProcAddr);
+        uint32_t queueCount = 64;
+        VkQueueFamilyProperties queues[64];
+        if (vkGetPhysicalDeviceQueueFamilyProperties) {
+            vkGetPhysicalDeviceQueueFamilyProperties(device, &queueCount, queues);
+        } else queueCount = 0;
+        VkResult logicalResult = VK_ERROR_FEATURE_NOT_PRESENT;
+        for (uint32_t q = 0; q < queueCount; q++) {
+            if (!queues[q].queueCount || !(queues[q].queueFlags & VK_QUEUE_GRAPHICS_BIT)) continue;
+            float priority = 1.0f;
+            VkDeviceQueueCreateInfo queueInfo = { .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                .queueFamilyIndex = q, .queueCount = 1, .pQueuePriorities = &priority };
+            VkDeviceCreateInfo deviceInfo = { .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+                .queueCreateInfoCount = 1, .pQueueCreateInfos = &queueInfo };
+            VkDevice logical = VK_NULL_HANDLE;
+            logicalResult = vkCreateDevice ? vkCreateDevice(device, &deviceInfo, NULL, &logical) : VK_ERROR_INITIALIZATION_FAILED;
+            if (logicalResult == VK_SUCCESS && vkGetDeviceProcAddr) {
+                PFN_vkDestroyDevice destroy = (PFN_vkDestroyDevice) vkGetDeviceProcAddr(logical, "vkDestroyDevice");
+                if (destroy) destroy(logical, NULL);
+            }
+            break;
+        }
+        LINE("logical_device_result=%d\n", logicalResult);
         VkPhysicalDeviceProperties p;
         vkGetPhysicalDeviceProperties(device, &p);
         LINE("device=%s\n", p.deviceName);
@@ -65,7 +114,7 @@ Java_com_droiddeck_launcher_gpu_VulkanInfo_nativeQuery(JNIEnv *env, jclass clazz
 
         uint32_t extCount = 0;
         if (vkEnumerateDeviceExtensionProperties) vkEnumerateDeviceExtensionProperties(device, NULL, &extCount, NULL);
-        static VkExtensionProperties exts[512];
+        VkExtensionProperties exts[512] = {0};
         if (extCount > 512) extCount = 512;
         if (extCount && vkEnumerateDeviceExtensionProperties) vkEnumerateDeviceExtensionProperties(device, NULL, &extCount, exts);
         int driverProps = p.apiVersion >= VK_API_VERSION_1_2;

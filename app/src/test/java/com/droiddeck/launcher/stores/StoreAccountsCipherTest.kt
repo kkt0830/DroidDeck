@@ -18,7 +18,7 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
+@Config(sdk = [33], application = android.app.Application::class)
 class StoreAccountsCipherTest {
     private val app get() = RuntimeEnvironment.getApplication()
     private fun newKey(): SecretKey = SecretKeySpec(ByteArray(32).also { SecureRandom().nextBytes(it) }, "AES")

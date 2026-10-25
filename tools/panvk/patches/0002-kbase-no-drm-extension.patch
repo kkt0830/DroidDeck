@@ -1,0 +1,11 @@
+--- a/src/panfrost/vulkan/panvk_vX_physical_device.c
++++ b/src/panfrost/vulkan/panvk_vX_physical_device.c
+@@ -196,7 +196,7 @@
+       .EXT_mutable_descriptor_type = PAN_ARCH >= 9,
+       .EXT_multisampled_render_to_single_sampled = true,
+       .EXT_multi_draw = PAN_ARCH >= 10,
+-      .EXT_physical_device_drm = true,
++      .EXT_physical_device_drm = !device->kbase_node_path[0],
+       .EXT_pipeline_creation_cache_control = true,
+       .EXT_pipeline_creation_feedback = true,
+       .EXT_pipeline_robustness = true,

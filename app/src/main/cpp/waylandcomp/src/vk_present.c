@@ -41,6 +41,7 @@ struct vkp_image {
 static ANativeWindow *g_window;
 static char *g_driver_path, *g_library_name, *g_native_lib_dir;
 static int g_dev_state;
+static int g_dmabuf_import;
 static VkInstance g_inst;
 static VkPhysicalDevice g_pd;
 static VkDevice g_dev;
@@ -459,17 +460,23 @@ static int dev_init(void) {
     }
     g_vk.GetPhysicalDeviceMemoryProperties(g_pd, &g_memprops);
 
-    const char *dev_exts[7] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME, "VK_KHR_external_memory_fd",
-                               "VK_EXT_external_memory_dma_buf", "VK_EXT_image_drm_format_modifier",
-                               "VK_KHR_image_format_list", NULL, NULL};
-    uint32_t n_dev_exts = 5;
+    const char *dev_exts[7] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+    uint32_t n_dev_exts = 1;
     uint32_t ne = 0;
     g_vk.EnumerateDeviceExtensionProperties(g_pd, NULL, &ne, NULL);
     VkExtensionProperties *exts = calloc(ne ? ne : 1, sizeof(*exts));
+    if (!exts) { g_dev_state = -1; return -1; }
     g_vk.EnumerateDeviceExtensionProperties(g_pd, NULL, &ne, exts);
-    for (unsigned i = 0; i < 5; i++)
-        if (!has_ext(exts, ne, dev_exts[i]))
-            LOGE("present: driver MISSING %s (dmabuf import will fail)", dev_exts[i]);
+    const char *dma_exts[] = {"VK_KHR_external_memory_fd", "VK_EXT_external_memory_dma_buf",
+                             "VK_EXT_image_drm_format_modifier", "VK_KHR_image_format_list"};
+    g_dmabuf_import = 1;
+    for (unsigned i = 0; i < 4; i++)
+        if (!has_ext(exts, ne, dma_exts[i])) g_dmabuf_import = 0;
+    if (g_dmabuf_import) {
+        for (unsigned i = 0; i < 4; i++) dev_exts[n_dev_exts++] = dma_exts[i];
+    } else {
+        droiddeck_log("gpu", "DMA-BUF import unavailable; shared-memory presentation remains available");
+    }
     int want_hdr_md = 0;
     if (droiddeck_color_requested()) {
         want_hdr_md = has_ext(exts, ne, VK_EXT_HDR_METADATA_EXTENSION_NAME);
@@ -869,7 +876,7 @@ static int modifier_importable(VkFormat fmt, uint64_t modifier, VkImageUsageFlag
 }
 
 int vkp_dmabuf_modifiers(uint32_t drm_format, uint64_t *out, int max) {
-    if (max <= 0 || dev_init() != 0 || !g_vk.GetPhysicalDeviceFormatProperties2) return 0;
+    if (max <= 0 || dev_init() != 0 || !g_dmabuf_import || !g_vk.GetPhysicalDeviceFormatProperties2) return 0;
     VkFormat fmt = drm_to_vk(drm_format);
     VkDrmFormatModifierPropertiesListEXT list = {
         .sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT};
@@ -911,7 +918,7 @@ int vkp_image_is_dmabuf(const struct vkp_image *img) { return img && img->dmabuf
 struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t modifier, int w, int h,
                                           uint32_t stride, uint32_t offset, int as_blit_dst) {
     if (modifier == MOD_INVALID || w <= 0 || h <= 0) return NULL;
-    if (dev_init() != 0) return NULL;
+    if (dev_init() != 0 || !g_dmabuf_import) return NULL;
 
     struct vkp_image *img = calloc(1, sizeof(*img));
     if (!img) return NULL;

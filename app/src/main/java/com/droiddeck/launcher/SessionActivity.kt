@@ -1957,7 +1957,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         repairOffered = hint?.repair == true
         loading.showEnded(
-            hint?.text ?: stopped,
+            if (SessionState.failureCode == "LINUX_VULKAN_UNSUPPORTED")
+                getString(R.string.session_linux_vulkan_unavailable) else hint?.text ?: stopped,
             getString(R.string.session_ended_detail, status, SessionState.logFile?.path ?: getString(R.string.session_ended_no_log)),
         )
         focusEndedScreen()

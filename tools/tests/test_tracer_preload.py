@@ -150,5 +150,41 @@ class TracerPreloadTest(unittest.TestCase):
         self.assertEqual(self.lines["ntdll_self_fopen"], "kind=proc tracer=hidden rdonly=1 vm=1")
 
 
+
+
+class WebHelperTier0TracerTest(unittest.TestCase):
+    def test_existing_tier0_opt_in_preserves_chromium_status_reads(self):
+        if not shutil.which('cc'):
+            self.skipTest('no compiler')
+        with tempfile.TemporaryDirectory() as folder:
+            tmp = Path(folder)
+            (tmp / 'tier0.c').write_text(NTDLL)
+            program = PROGRAM.replace('int main(void) {',
+                'extern char *program_invocation_short_name;\nint main(void) {\n  program_invocation_short_name = "steamwebhelper";')
+            (tmp / 'helper.c').write_text(program)
+            sources = sorted(str(p) for p in PRELOAD.glob('*.c'))
+            subprocess.run(['cc', '-shared', '-fPIC', '-O2', '-Wall', '-pthread', '-o',
+                            str(tmp / 'libblsession.so'), *sources, '-ldl'], check=True)
+            subprocess.run(['cc', '-shared', '-fPIC', '-O2', '-o', str(tmp / 'libtier0_s.so'),
+                            str(tmp / 'tier0.c')], check=True)
+            executable = tmp / 'steamwebhelper'
+            subprocess.run(['cc', '-O1', '-o', str(executable), str(tmp / 'helper.c'),
+                            str(tmp / 'libtier0_s.so'), '-Wl,-rpath,' + str(tmp)], check=True)
+            for enabled in ['0', '1']:
+                with self.subTest(enabled=enabled):
+                    env = dict(os.environ, LD_PRELOAD=str(tmp / 'libblsession.so'),
+                               BL_WEBHELPER_HIDE_TRACER=enabled)
+                    result = subprocess.run([str(executable)], env=env, capture_output=True,
+                                            text=True, check=True, timeout=30)
+                    if 'no ptrace' in result.stdout:
+                        self.skipTest('ptrace not allowed')
+                    lines = dict(line.split(' ', 1) for line in result.stdout.splitlines())
+                    self.assertEqual(lines['main_other_open'], 'kind=proc tracer=shown rdonly=1 vm=1')
+                    self.assertEqual(lines['main_other_fopen'], 'kind=proc tracer=shown rdonly=1 vm=1')
+                    for name in ['ntdll_other_open', 'ntdll_other_openat', 'ntdll_other_fopen']:
+                        self.assertEqual(lines[name], 'kind=copy tracer=hidden rdonly=1 vm=1' if enabled == '1'
+                                         else 'kind=proc tracer=shown rdonly=1 vm=1')
+
+
 if __name__ == "__main__":
     unittest.main()

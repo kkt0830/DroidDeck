@@ -90,13 +90,19 @@ public final class LinuxRuntime {
     }
 
     public static File vulkanIcd(Context context) {
-        File icdDir = new File(rootDir(context), "usr/share/vulkan/icd.d");
+        return vulkanIcd(rootDir(context), com.droiddeck.launcher.gpu.GpuInfo.Companion.detect().getSupportsTurnip());
+    }
+
+    static File vulkanIcd(File root, boolean supportsTurnip) {
+        // Runtime r9 ships a KGSL Turnip ICD, not a bridge to Android system Vulkan.
+        if (!supportsTurnip) return null;
+        File icdDir = new File(root, "usr/share/vulkan/icd.d");
         File[] manifests = icdDir.listFiles((dir, name) -> name.endsWith(".json"));
         if (manifests == null) return null;
         for (File manifest : manifests) {
             if (manifest.getName().contains("freedreno")) return manifest;
         }
-        return manifests.length > 0 ? manifests[0] : null;
+        return null;
     }
 
     public static List<String> command(Context context, File sessionRoot, File runtimeDir,

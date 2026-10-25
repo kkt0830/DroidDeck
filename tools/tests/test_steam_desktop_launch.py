@@ -135,3 +135,52 @@ class DesktopSteamLaunchTest(unittest.TestCase):
                                                  env=env, text=True)
                 self.assertEqual('-cef-disable-gpu' in result, software)
                 self.assertEqual('-cef-use-angle=vulkan' in result, not software)
+
+    def test_experimental_mali_selects_gl_without_changing_gpu_driver(self):
+        source = (BIN / 'droiddeck-session').read_text()
+        setup = source[source.index('    _bl_ui=(-gamepadui)'):source.index('    if [ "${BL_STEAM_UI:-}" != desktop ]; then')]
+        for probe in ['', '/driver/panvk-probe']:
+            with self.subTest(probe=probe):
+                env = dict(self.env, BL_DESKTOP='', BL_STEAM_UI='bigpicture',
+                           BL_PANVK_PROBE=probe, GALLIUM_DRIVER='zink',
+                           VK_DRIVER_FILES='/driver/panfrost.json')
+                script = setup + '\nprintf "ARG:%s\n" "${_bl_cef[@]}"; printf "GPU:%s:%s\n" "$GALLIUM_DRIVER" "$VK_DRIVER_FILES"'
+                result = subprocess.check_output(['bash', '-c', script], env=env, text=True)
+                self.assertNotIn('ARG:-cef-disable-gpu', result)
+                self.assertEqual('ARG:-cef-use-angle=gl' in result, bool(probe))
+                self.assertEqual('ARG:-cef-use-angle=vulkan' in result, not bool(probe))
+                check = subprocess.check_output(['bash', '-c', setup + '\nprintf "WSI:%s\nARGS:%s\n" "${DISABLE_GAMESCOPE_WSI:-unset}" "${BL_WEBHELPER_ARGS:-unset}"'], env=env, text=True)
+                self.assertIn('WSI:1' if probe else 'WSI:unset', check)
+                tracer = subprocess.check_output(['bash', '-c', setup + '\nprintf "TRACER:%s\n" "${BL_WEBHELPER_HIDE_TRACER:-unset}"'], env=env, text=True)
+                self.assertIn('TRACER:1' if probe else 'TRACER:unset', tracer)
+                self.assertIn('ARGS:--no-zygote --ignore-gpu-blocklist --use-gl=angle --use-angle=gl --ozone-platform=x11 -AudioServiceOutOfProcess' if probe else 'ARGS:unset', check)
+                self.assertIn('GPU:zink:/driver/panfrost.json', result)
+
+    def test_mali_login_uses_desktop_without_deck_flags(self):
+        source = (BIN / 'droiddeck-session').read_text()
+        start = source.index('    if [ -n "${BL_PANVK_PROBE:-}" ]; then\n      export BL_STEAM_UI=desktop')
+        end = source.index('    export STEAMOS_STEAM_SHUTDOWN_SENTINEL', start)
+        setup = source[start:end]
+        for probe in ['', '/driver/panvk-probe']:
+            with self.subTest(probe=probe):
+                env = dict(self.env, BL_DESKTOP='', BL_STEAM_UI='bigpicture',
+                           BL_PANVK_PROBE=probe, steam_x64='0')
+                output = subprocess.check_output(['bash', '-c', setup + '\nprintf "UI:%s\n" "${_bl_ui[@]}"'], env=env, text=True)
+                if probe:
+                    self.assertIn('UI:-nobigpicture', output)
+                    self.assertNotIn('UI:-gamepadui', output)
+                    self.assertNotIn('UI:-steamdeck', output)
+                    self.assertNotIn('UI:-steamos3', output)
+                else:
+                    self.assertIn('UI:-gamepadui', output)
+                    self.assertIn('UI:-steamdeck', output)
+                    self.assertIn('UI:-steamos3', output)
+
+    def test_mali_skips_failing_mangoapp_without_changing_ordinary_sessions(self):
+        source = (BIN / 'droiddeck-session').read_text()
+        start = source.index('  if [ -n "${BL_PANVK_PROBE:-}" ]; then\n    export BL_MANGOAPP=0')
+        end = source.index('  if [ "$mode" = steam ] && [ "${BL_MANGOAPP:-1}" = 1 ]', start)
+        for probe in ['', '/driver/panvk-probe']:
+            env = dict(self.env, BL_PANVK_PROBE=probe, BL_MANGOAPP='1')
+            output = subprocess.check_output(['bash', '-c', source[start:end] + '\nprintf "HUD:%s\n" "$BL_MANGOAPP"'], env=env, text=True)
+            self.assertIn('HUD:0' if probe else 'HUD:1', output)
